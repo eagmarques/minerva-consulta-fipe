@@ -8,6 +8,10 @@ import requests
 from src.domain.models import Brand, ModelYear, PriceResult, Reference, VehicleModel
 from src.providers.base import FipeProvider
 
+DEFAULT_BASE_URL = "https://fipe.parallelum.com.br/api/v2"
+DEFAULT_TIMEOUT_SECONDS = 10.0
+ALLOWED_VEHICLE_TYPES = frozenset({"cars", "motorcycles", "trucks"})
+
 
 class FipeProviderError(Exception):
     """Base exception for provider failures."""
@@ -37,7 +41,7 @@ class ApiProvider(FipeProvider):
     def __init__(
         self,
         token: str | None = None,
-        base_url: str = "https://fipe.parallelum.com.br/api/v2",
+        base_url: str = DEFAULT_BASE_URL,
         timeout: float | None = None,
         session: requests.Session | None = None,
     ) -> None:
@@ -45,28 +49,22 @@ class ApiProvider(FipeProvider):
         if not resolved_token:
             raise FipeAuthError("FIPE_TOKEN is required to call FIPE API.")
 
-        resolved_timeout = timeout
-        if resolved_timeout is None:
-            resolved_timeout = float(os.getenv("FIPE_TIMEOUT", "10.0"))
-
         self.base_url = base_url.rstrip("/")
-        self.timeout = resolved_timeout
+        self.timeout = self._resolve_timeout(timeout)
         self._token = resolved_token
         self._session = session or requests.Session()
-
-    @property
-    def provider_name(self) -> str:
-        return self.__class__.__name__
 
     def list_references(self) -> list[Reference]:
         payload = self._request("references")
         return [Reference.from_dict(item) for item in self._ensure_list(payload)]
 
     def list_brands(self, vehicle_type: str, reference: str) -> list[Brand]:
+        self._validate_vehicle_type(vehicle_type)
         payload = self._request(f"{vehicle_type}/brands", params={"reference": reference})
         return [Brand.from_dict(item) for item in self._ensure_list(payload)]
 
     def list_models(self, vehicle_type: str, brand_id: str, reference: str) -> list[VehicleModel]:
+        self._validate_vehicle_type(vehicle_type)
         payload = self._request(
             f"{vehicle_type}/brands/{brand_id}/models",
             params={"reference": reference},
@@ -82,6 +80,7 @@ class ApiProvider(FipeProvider):
         model_id: str,
         reference: str,
     ) -> list[ModelYear]:
+        self._validate_vehicle_type(vehicle_type)
         payload = self._request(
             f"{vehicle_type}/brands/{brand_id}/models/{model_id}/years",
             params={"reference": reference},
@@ -96,6 +95,7 @@ class ApiProvider(FipeProvider):
         year_id: str,
         reference: str,
     ) -> PriceResult:
+        self._validate_vehicle_type(vehicle_type)
         payload = self._request(
             f"{vehicle_type}/brands/{brand_id}/models/{model_id}/years/{year_id}",
             params={"reference": reference},
@@ -121,19 +121,27 @@ class ApiProvider(FipeProvider):
         except requests.RequestException as error:
             raise FipeRequestError("Request failure while calling FIPE API.") from error
 
+        error_message = self._extract_error_message(response)
+        error_suffix = f" Details: {error_message}" if error_message else ""
         if response.status_code == 404:
-            raise FipeNotFoundError(f"Resource not found: {path}")
+            raise FipeNotFoundError(f"Resource not found: {path}.{error_suffix}")
         if response.status_code == 401:
-            raise FipeAuthError("FIPE API authentication failed. Check your FIPE_TOKEN.")
+            raise FipeAuthError(
+                f"FIPE API authentication failed. Check your FIPE_TOKEN.{error_suffix}"
+            )
         if response.status_code == 402:
             raise FipeSubscriptionError(
                 "FIPE API subscription does not allow this request (402). "
-                "Check token plan/credits on FipeOnline."
+                f"Check token plan/credits on FipeOnline.{error_suffix}"
             )
         if response.status_code >= 500:
-            raise FipeServerError(f"Server error from FIPE API ({response.status_code}).")
+            raise FipeServerError(
+                f"Server error from FIPE API ({response.status_code}).{error_suffix}"
+            )
         if response.status_code >= 400:
-            raise FipeRequestError(f"FIPE API request failed ({response.status_code}).")
+            raise FipeRequestError(
+                f"FIPE API request failed ({response.status_code}).{error_suffix}"
+            )
 
         try:
             return response.json()
@@ -145,3 +153,42 @@ class ApiProvider(FipeProvider):
         if isinstance(payload, list):
             return [item for item in payload if isinstance(item, dict)]
         raise FipeRequestError("FIPE API returned an unexpected payload format.")
+
+    @staticmethod
+    def _resolve_timeout(timeout: float | None) -> float:
+        if timeout is not None:
+            resolved_timeout = timeout
+        else:
+            timeout_raw = os.getenv("FIPE_TIMEOUT", str(DEFAULT_TIMEOUT_SECONDS))
+            try:
+                resolved_timeout = float(timeout_raw)
+            except ValueError as error:
+                raise FipeRequestError("FIPE_TIMEOUT must be numeric.") from error
+
+        if resolved_timeout <= 0:
+            raise FipeRequestError("Request timeout must be greater than zero.")
+        return resolved_timeout
+
+    @staticmethod
+    def _validate_vehicle_type(vehicle_type: str) -> None:
+        if vehicle_type not in ALLOWED_VEHICLE_TYPES:
+            allowed = ", ".join(sorted(ALLOWED_VEHICLE_TYPES))
+            raise FipeRequestError(
+                f"Invalid vehicle_type '{vehicle_type}'. Allowed values: {allowed}."
+            )
+
+    @staticmethod
+    def _extract_error_message(response: requests.Response) -> str:
+        try:
+            payload = response.json()
+        except ValueError:
+            return ""
+
+        if not isinstance(payload, dict):
+            return ""
+
+        for key in ("message", "error", "detail"):
+            value = payload.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        return ""

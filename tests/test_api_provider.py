@@ -60,6 +60,21 @@ def test_missing_token_raises_auth_error(monkeypatch: pytest.MonkeyPatch) -> Non
         ApiProvider(token=None, session=DummySession([]))
 
 
+def test_invalid_timeout_env_raises_request_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("FIPE_TOKEN", "secret")
+    monkeypatch.setenv("FIPE_TIMEOUT", "not-a-number")
+
+    with pytest.raises(FipeRequestError, match="FIPE_TIMEOUT must be numeric"):
+        ApiProvider(token=None, session=DummySession([]))
+
+
+def test_non_positive_timeout_raises_request_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("FIPE_TOKEN", "secret")
+
+    with pytest.raises(FipeRequestError, match="greater than zero"):
+        ApiProvider(token=None, timeout=0, session=DummySession([]))
+
+
 def test_list_references(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("FIPE_TOKEN", "secret")
     session = DummySession([DummyResponse(200, [{"code": "320", "month": "abril de 2024"}])])
@@ -83,6 +98,17 @@ def test_list_brands_with_reference_param(monkeypatch: pytest.MonkeyPatch) -> No
     assert len(result) == 1
     assert result[0].name == "Ford"
     assert session.calls[0]["params"] == {"reference": "320"}
+
+
+def test_invalid_vehicle_type_raises_request_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("FIPE_TOKEN", "secret")
+    session = DummySession([])
+    provider = ApiProvider(session=session)
+
+    with pytest.raises(FipeRequestError, match="Invalid vehicle_type"):
+        provider.list_brands("boats", "320")
+
+    assert session.calls == []
 
 
 def test_list_models_from_dict_payload(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -168,6 +194,16 @@ def test_http_402_raises_subscription_error(monkeypatch: pytest.MonkeyPatch) -> 
     )
 
     with pytest.raises(FipeSubscriptionError):
+        provider.list_references()
+
+
+def test_http_400_includes_api_error_message(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("FIPE_TOKEN", "secret")
+    provider = ApiProvider(
+        session=DummySession([DummyResponse(400, {"message": "Invalid reference"})])
+    )
+
+    with pytest.raises(FipeRequestError, match="Invalid reference"):
         provider.list_references()
 
 
