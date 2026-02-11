@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "minerva-tabela-fipe-app"
+version = "0.1.0"
+description = "Streamlit app for FIPE public consultation flow using official API."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "requests>=2.32.0",
+  "streamlit>=1.36.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "black>=24.8.0",
+  "pytest>=8.3.0",
+  "pytest-cov>=5.0.0",
+  "ruff>=0.6.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["src*"]
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.coverage.run]
+source = ["src"]
+omit = [
+  "src/ui/*",
+  "src/**/__init__.py",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
