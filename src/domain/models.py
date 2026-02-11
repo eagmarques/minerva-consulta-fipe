@@ -87,15 +87,3 @@ class PriceResult:
             authentication=str(payload.get("authentication", "")),
             price_value=price_value,
         )
-
-    def to_display_dict(self) -> dict[str, Any]:
-        return {
-            "price": self.price,
-            "codeFipe": self.code_fipe,
-            "brand": self.brand,
-            "model": self.model,
-            "fuel": self.fuel,
-            "modelYear": self.model_year,
-            "referenceMonth": self.reference_month,
-            "authentication": self.authentication,
-        }

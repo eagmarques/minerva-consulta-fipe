@@ -44,12 +44,38 @@ class FakeProvider(FipeProvider):
         )
 
 
+class MultiReferenceProvider(FakeProvider):
+    def list_references(self) -> list[Reference]:
+        return [
+            Reference(code="318", month="fevereiro de 2024"),
+            Reference(code="320", month="abril de 2024"),
+            Reference(code="317", month="janeiro de 2024"),
+            Reference(code="319", month="marco de 2024"),
+        ]
+
+
 def test_list_references_normalizes_month() -> None:
     service = FipeService(provider=FakeProvider())
 
     result = service.list_references()
 
     assert result[0].month == "abril de 2024"
+
+
+def test_list_recent_references_orders_by_code_and_limits_items() -> None:
+    service = FipeService(provider=MultiReferenceProvider())
+
+    result = service.list_recent_references(limit=3)
+
+    assert [item.code for item in result] == ["320", "319", "318"]
+
+
+def test_list_recent_references_with_non_positive_limit_returns_empty() -> None:
+    service = FipeService(provider=FakeProvider())
+
+    result = service.list_recent_references(limit=0)
+
+    assert result == []
 
 
 def test_list_entities_passthrough() -> None:

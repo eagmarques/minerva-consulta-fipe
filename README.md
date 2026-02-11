@@ -5,6 +5,7 @@ Aplicacao Streamlit para consulta da Tabela FIPE com fluxo em cascata, usando so
 - Base URL: `https://fipe.parallelum.com.br/api/v2`
 - Header obrigatorio: `X-Subscription-Token`
 - Token via variavel de ambiente: `FIPE_TOKEN`
+- Timeout opcional via `FIPE_TIMEOUT` (segundos)
 
 ## Requisitos
 
@@ -74,7 +75,7 @@ Responsabilidades:
 - `src/providers/base.py`: contrato `FipeProvider`.
 - `src/providers/api_provider.py`: cliente HTTP para endpoints da API oficial, token obrigatorio, timeout e erros customizados.
 - `src/services/fipe_service.py`: orquestracao e normalizacao de dados para uso da UI.
-- `src/ui/consulta_page.py`: fluxo Streamlit em cascata com `session_state`, cache e debug.
+- `src/ui/consulta_page.py`: fluxo Streamlit em cascata com `session_state`, cache e layout profissional.
 - `src/utils/formatting.py`: formatacao BRL e normalizacao de mes de referencia.
 
 ## Endpoints implementados
@@ -91,6 +92,7 @@ Responsabilidades:
 - Sem scraping
 - Somente API oficial
 - Token obrigatorio (`FIPE_TOKEN`)
+- Mes de referencia limitado aos 3 ultimos meses retornados
 - Testes offline com mocks
 - Cobertura minima configurada para `>= 80%`
 - `ruff` + `black` + CI no GitHub Actions

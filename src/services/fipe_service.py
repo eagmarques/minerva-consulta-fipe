@@ -11,13 +11,16 @@ class FipeService:
     def __init__(self, provider: FipeProvider) -> None:
         self.provider = provider
 
-    @property
-    def provider_name(self) -> str:
-        return self.provider.__class__.__name__
-
     def list_references(self) -> list[Reference]:
         references = self.provider.list_references()
         return [replace(item, month=normalize_reference_month(item.month)) for item in references]
+
+    def list_recent_references(self, limit: int = 3) -> list[Reference]:
+        if limit <= 0:
+            return []
+
+        references = self.list_references()
+        return sorted(references, key=self._reference_sort_key, reverse=True)[:limit]
 
     def list_brands(self, vehicle_type: str, reference: str) -> list[Brand]:
         return self.provider.list_brands(vehicle_type=vehicle_type, reference=reference)
@@ -65,3 +68,10 @@ class FipeService:
             reference_month=normalized_month,
             price=normalized_price,
         )
+
+    @staticmethod
+    def _reference_sort_key(reference: Reference) -> int:
+        try:
+            return int(reference.code)
+        except ValueError:
+            return -1
