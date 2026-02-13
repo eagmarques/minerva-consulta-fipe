@@ -50,3 +50,6 @@ omit = [
 [tool.coverage.report]
 show_missing = true
 skip_covered = false
+
+[tool.poetry]
+package-mode = false
